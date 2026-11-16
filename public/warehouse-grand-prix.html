@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Warehouse Grand Prix: Order Fulfillment Rush</title>
+  <meta name="description" content="Game edukasi 2D SMK Manajemen Logistik: simulasi Order Picking, Packing & Handling Label, hingga Dispatch di gudang U-Shape." />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: #0B1528; color: #F8FAFC; overflow: hidden; touch-action: manipulation; }
+    .font-display { font-family: 'Barlow Condensed', system-ui, sans-serif; }
+    .font-mono-tabular { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body class="bg-[#0B1528] text-slate-100 select-none">
+<div id="app" class="relative flex h-screen w-screen flex-col overflow-hidden">
+
+  <!-- TOP HUD -->
+  <header id="hud-bar" class="hidden h-13 shrink-0 items-center justify-between gap-4 border-b border-slate-700/80 bg-[#0F1E36] px-4 py-2">
+    <div class="flex items-center gap-3 min-w-0">
+      <span class="font-display text-lg font-extrabold tracking-wide text-white whitespace-nowrap">WAREHOUSE GRAND PRIX</span>
+      <span class="hidden sm:inline text-slate-600">·</span>
+      <span id="hud-level" class="hidden sm:inline truncate font-mono-tabular text-xs font-semibold text-orange-400"></span>
+    </div>
+    <div class="flex items-center gap-4 sm:gap-6 shrink-0 font-mono-tabular text-xs sm:text-sm">
+      <div><span class="text-slate-400 mr-1.5">WAKTU</span><span id="hud-time" class="font-bold text-white">60d</span></div>
+      <div><span class="text-slate-400 mr-1.5">SKOR</span><span id="hud-score" class="font-bold text-orange-400">0</span></div>
+      <div class="hidden md:block"><span class="text-slate-400 mr-1.5">PAKET</span><span id="hud-packages" class="font-bold text-emerald-400">0/3</span></div>
+      <div class="hidden md:block"><span class="text-slate-400 mr-1.5">AKURASI</span><span id="hud-accuracy" class="font-bold text-sky-400">100%</span></div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <button id="btn-mute" type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-xs font-bold text-emerald-400 hover:border-slate-500 cursor-pointer" title="Mute / Unmute">🔊</button>
+      <button id="btn-pause" type="button" class="inline-flex h-9 items-center rounded-lg border border-slate-700 bg-slate-900 px-3 text-xs font-semibold text-slate-200 hover:border-slate-500 cursor-pointer">Jeda</button>
+    </div>
+  </header>
+
+  <!-- MAIN AREA -->
+  <main class="relative flex flex-1 flex-col overflow-hidden lg:flex-row">
+    <div class="relative flex flex-1 items-center justify-center overflow-hidden bg-[#0B1528] p-2 sm:p-3">
+      <canvas id="game-canvas" width="960" height="620" class="max-h-full max-w-full rounded-xl border border-slate-700/80 bg-[#142033] shadow-2xl object-contain"></canvas>
+      <div id="status-banner" class="pointer-events-none hidden absolute top-4 left-1/2 -translate-x-1/2 z-10 max-w-md rounded-lg border px-3.5 py-2 text-center text-xs font-semibold shadow-lg"></div>
+      <div id="legend-strip" class="pointer-events-none hidden lg:flex absolute bottom-4 left-5 items-center gap-3 rounded-lg border border-slate-700/70 bg-[#0B1528]/90 px-3 py-1.5 text-[11px] text-slate-300">
+        <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-sky-400"></span>Elektronik (Fragile)</span>
+        <span class="text-slate-600">·</span>
+        <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-amber-400"></span>Kimia (This Way Up)</span>
+        <span class="text-slate-600">·</span>
+        <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-emerald-400"></span>Tekstil (Keep Dry)</span>
+      </div>
+    </div>
+
+    <!-- PICKING SLIP PANEL -->
+    <aside id="slip-panel" class="hidden h-56 shrink-0 lg:h-full w-full lg:w-80 xl:w-88 flex-col border-t border-slate-700/80 bg-[#0F1E36] lg:border-l lg:border-t-0">
+      <div class="flex items-center justify-between border-b border-slate-700/80 px-4 py-3">
+        <div>
+          <h2 class="font-display text-lg font-bold tracking-wide text-white leading-none">PICKING SLIP AKTIF</h2>
+          <p class="mt-1 text-[11px] text-slate-400">Ikuti kode rak dan alur Packing → Dispatch</p>
+        </div>
+        <span id="slip-count" class="font-mono-tabular text-xs font-bold text-orange-400">0 Order</span>
+      </div>
+      <div id="slip-list" class="flex-1 space-y-3 overflow-y-auto p-3.5"></div>
+      <div class="border-t border-slate-700/80 bg-[#0B1528] p-3">
+        <button id="btn-context-action" type="button" disabled class="w-full rounded-lg bg-slate-800 px-4 py-2.5 text-xs font-bold text-slate-500 transition-all">Dekati Rak / Meja / Dock untuk Aksi</button>
+      </div>
+    </aside>
+  </main>
+
+  <!-- TOUCH D-PAD -->
+  <div id="touch-controls" class="pointer-events-none hidden fixed inset-x-0 bottom-3 z-20 items-end justify-between px-4 lg:hidden">
+    <div class="pointer-events-auto grid grid-cols-3 gap-1.5 rounded-xl border border-slate-700/80 bg-[#0B1528]/85 p-2 shadow-lg">
+      <div></div>
+      <button data-dir="up" class="dpad-btn flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-800/90 text-white active:bg-orange-500 active:text-slate-950 font-bold">▲</button>
+      <div></div>
+      <button data-dir="left" class="dpad-btn flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-800/90 text-white active:bg-orange-500 active:text-slate-950 font-bold">◀</button>
+      <button data-dir="down" class="dpad-btn flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-800/90 text-white active:bg-orange-500 active:text-slate-950 font-bold">▼</button>
+      <button data-dir="right" class="dpad-btn flex h-11 w-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-800/90 text-white active:bg-orange-500 active:text-slate-950 font-bold">▶</button>
+    </div>
+    <button id="btn-touch-action" type="button" class="pointer-events-auto flex h-16 min-w-[120px] flex-col items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-4 text-xs font-bold text-slate-300 shadow-lg active:scale-95">AMBIL / PROSES</button>
+  </div>
+
+  <!-- TITLE SCREEN -->
+  <div id="title-screen" class="absolute inset-0 z-20 flex flex-col justify-between bg-[#0B1528]/85 px-4 py-5 sm:px-8 sm:py-7 overflow-y-auto">
+    <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
+      <div class="flex items-center gap-3 text-xs font-medium text-slate-300">
+        <span class="font-mono-tabular text-orange-400">SMK MANAJEMEN LOGISTIK</span>
+        <span class="text-slate-600">·</span>
+        <span>Simulasi Order Fulfillment 2D</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-open-sop" type="button" class="rounded-lg border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs font-semibold text-slate-200 hover:border-slate-500 cursor-pointer">Panduan SOP</button>
+        <button id="btn-title-mute" type="button" class="h-9 w-9 rounded-lg border border-slate-700 bg-slate-900/90 text-xs font-bold text-emerald-400 hover:border-slate-500 cursor-pointer">🔊</button>
+      </div>
+    </div>
+
+    <div class="mx-auto my-auto w-full max-w-5xl py-4">
+      <div class="mb-6 flex flex-col items-start gap-2">
+        <div class="flex items-center gap-3.5">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" class="shrink-0">
+            <rect x="2" y="2" width="44" height="44" rx="10" fill="#0F1E36" stroke="#F97316" stroke-width="2.5" />
+            <path d="M12 20L24 13L36 20V33L24 40L12 33V20Z" fill="#1E293B" stroke="#F8FAFC" stroke-width="2" stroke-linejoin="round" />
+            <path d="M12 20L24 27L36 20" stroke="#F97316" stroke-width="2" stroke-linejoin="round" />
+            <path d="M24 27V40" stroke="#F97316" stroke-width="2" />
+            <path d="M18 16.5L30 23.5" stroke="#38BDF8" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <div>
+            <h1 class="font-display text-4xl font-extrabold tracking-tight text-white sm:text-5xl leading-none">WAREHOUSE GRAND PRIX</h1>
+            <p class="font-display text-xl font-bold tracking-wide text-orange-400 sm:text-2xl leading-tight">ORDER FULFILLMENT RUSH</p>
+          </div>
+        </div>
+        <p class="max-w-2xl text-sm text-slate-300 leading-relaxed">
+          Simulasi operator gudang di lintasan U-Shape: lakukan <strong class="text-white">Order Picking</strong> sesuai Picking Slip, pasang <strong class="text-white">Handling Label</strong> di Meja Packing, dan kirim tepat waktu ke <strong class="text-white">Loading Dock</strong>.
+        </p>
+      </div>
+
+      <div id="level-cards" class="grid grid-cols-1 gap-3.5 md:grid-cols-3"></div>
+
+      <div class="mt-6 flex flex-wrap items-center justify-between gap-4">
+        <button id="btn-start-game" type="button" class="inline-flex items-center gap-2.5 rounded-xl bg-orange-500 px-7 py-3.5 text-base font-bold text-slate-950 shadow-lg hover:bg-orange-400 cursor-pointer">
+          <span>▶ Mulai Shift Sekarang</span>
+        </button>
+        <p class="text-xs text-slate-400 font-mono-tabular">WASD / Panah Bergerak · Spasi Ambil / Proses · Esc Jeda</p>
+      </div>
+    </div>
+
+    <div class="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 pt-3 text-xs text-slate-400">
+      <span>+100 Poin / Paket Akurat · +10 Poin / Sisa Detik · -30 Penalti Salah Rak / Label</span>
+      <span class="font-mono-tabular text-slate-500">Single-File Netlify Ready Edition</span>
+    </div>
+  </div>
+
+  <!-- SOP MODAL -->
+  <div id="sop-modal" class="hidden fixed inset-0 z-40 items-center justify-center bg-slate-950/85 p-4">
+    <div class="w-full max-w-2xl rounded-xl border border-slate-700 bg-[#0F1E36] p-6 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-700/80 pb-3 mb-4">
+        <h3 class="font-display text-2xl font-bold text-white">SOP Order Fulfillment &amp; Handling Label</h3>
+        <button id="btn-close-sop" type="button" class="rounded-lg border border-slate-700 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer">Tutup</button>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-slate-300 mb-4">
+        <div class="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><strong class="text-orange-400 block mb-1">01. ORDER PICKING</strong>Ambil barang sesuai kode rak di Picking Slip. Di Level 3 jika rak kosong (Blind Count), ambil stok di Zona Cadangan.</div>
+        <div class="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><strong class="text-sky-400 block mb-1">02. PACKING &amp; QC</strong>Pilih Handling Label yang tepat sesuai jenis muatan serta centang Packing List &amp; Shipping Label (AWB).</div>
+        <div class="rounded-lg border border-slate-700 bg-slate-900/70 p-3"><strong class="text-emerald-400 block mb-1">03. DISPATCH</strong>Bawa paket tersegel ke Loading Dock untuk dimuat ke truk pengiriman.</div>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+        <div class="rounded-lg border border-sky-400/40 bg-sky-500/15 p-2.5"><strong class="text-white block">FRAGILE</strong><span class="text-slate-300">Elektronik, kaca optik, sensor presisi.</span></div>
+        <div class="rounded-lg border border-amber-400/40 bg-amber-500/15 p-2.5"><strong class="text-white block">THIS WAY UP</strong><span class="text-slate-300">Cairan kimia, pelumas, botol bersegel atas.</span></div>
+        <div class="rounded-lg border border-emerald-400/40 bg-emerald-500/15 p-2.5"><strong class="text-white block">KEEP DRY</strong><span class="text-slate-300">Tekstil, kain ekspor, karton &amp; kertas arsip.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PACKING MODAL -->
+  <div id="packing-modal" class="hidden fixed inset-0 z-30 items-center justify-center bg-slate-950/80 p-4">
+    <div class="w-full max-w-xl rounded-xl border border-slate-700 bg-[#0F1E36] p-5 shadow-2xl">
+      <div class="flex items-start justify-between border-b border-slate-700/80 pb-3">
+        <div>
+          <div class="font-mono-tabular text-xs font-bold text-sky-400">MEJA PACKING · QC &amp; LABELING</div>
+          <h3 id="pack-title" class="font-display text-2xl font-bold text-white">Verifikasi Paket</h3>
+          <p id="pack-customer" class="text-xs text-slate-400"></p>
+        </div>
+        <button id="btn-pack-cancel" type="button" class="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 hover:bg-slate-800 cursor-pointer">Tunda (Esc)</button>
+      </div>
+      <div id="pack-cargo" class="mt-3.5 rounded-lg border border-slate-700/80 bg-slate-900/70 p-3 flex flex-wrap gap-2"></div>
+      <div class="mt-4">
+        <div class="mb-2 flex justify-between text-xs"><span class="font-semibold text-slate-200">1. Pilih 1 Handling Label yang Tepat:</span><span class="font-mono-tabular text-slate-400">Shortcut: 1 / 2 / 3</span></div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button type="button" data-label="FRAGILE" class="pack-label-btn rounded-lg border border-slate-700 bg-slate-900/60 p-3 text-left hover:border-slate-500 cursor-pointer"><div class="font-mono-tabular text-xs font-bold text-sky-400">[1] FRAGILE</div><div class="text-[11px] text-slate-300">Barang Mudah Pecah</div></button>
+          <button type="button" data-label="THIS_WAY_UP" class="pack-label-btn rounded-lg border border-slate-700 bg-slate-900/60 p-3 text-left hover:border-slate-500 cursor-pointer"><div class="font-mono-tabular text-xs font-bold text-amber-400">[2] THIS WAY UP</div><div class="text-[11px] text-slate-300">Posisi Tutup di Atas</div></button>
+          <button type="button" data-label="KEEP_DRY" class="pack-label-btn rounded-lg border border-slate-700 bg-slate-900/60 p-3 text-left hover:border-slate-500 cursor-pointer"><div class="font-mono-tabular text-xs font-bold text-emerald-400">[3] KEEP DRY</div><div class="text-[11px] text-slate-300">Jaga Tetap Kering</div></button>
+        </div>
+      </div>
+      <div class="mt-4">
+        <div class="mb-2 flex justify-between text-xs"><span class="font-semibold text-slate-200">2. Verifikasi Dokumen Pengiriman:</span><button id="btn-check-all-docs" type="button" class="text-xs font-semibold text-sky-400 hover:text-sky-300 cursor-pointer">Centang Semua</button></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <label class="flex items-center gap-2.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2.5 text-xs font-medium cursor-pointer"><input id="chk-packing-list" type="checkbox" class="h-4 w-4 accent-emerald-500" /><span>Packing List</span></label>
+          <label class="flex items-center gap-2.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2.5 text-xs font-medium cursor-pointer"><input id="chk-awb" type="checkbox" class="h-4 w-4 accent-emerald-500" /><span>Shipping Label / AWB</span></label>
+        </div>
+      </div>
+      <div id="pack-error" class="hidden mt-3 rounded-lg border border-rose-500/60 bg-rose-950/40 p-2.5 text-xs text-rose-200"></div>
+      <div class="mt-5 flex justify-end border-t border-slate-700/80 pt-3.5">
+        <button id="btn-pack-confirm" type="button" class="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-orange-400 cursor-pointer">Segel Paket &amp; Siap Dispatch</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSE MODAL -->
+  <div id="pause-modal" class="hidden fixed inset-0 z-30 items-center justify-center bg-slate-950/80 p-4">
+    <div class="w-full max-w-sm rounded-xl border border-slate-700 bg-[#0F1E36] p-6 text-center shadow-2xl">
+      <h2 class="font-display text-3xl font-bold text-white">SHIFT DIJEDA</h2>
+      <div class="mt-5 flex flex-col gap-2.5">
+        <button id="btn-resume" type="button" class="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-orange-400 cursor-pointer">Lanjutkan Shift</button>
+        <button id="btn-restart-pause" type="button" class="rounded-lg border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 cursor-pointer">Ulangi Level</button>
+        <button id="btn-menu-pause" type="button" class="rounded-lg border border-slate-700 bg-slate-900 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-800 cursor-pointer">Kembali ke Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI REPORT MODAL -->
+  <div id="kpi-modal" class="hidden fixed inset-0 z-30 items-center justify-center bg-[#0B1528]/90 p-4 overflow-y-auto">
+    <div class="w-full max-w-2xl rounded-xl border border-slate-700 bg-[#0F1E36] p-6 shadow-2xl">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/80 pb-4">
+        <div>
+          <div id="kpi-subtitle" class="font-mono-tabular text-xs font-bold text-orange-400">RAPOR KPI SISWA</div>
+          <h2 id="kpi-title" class="font-display text-3xl font-extrabold text-white">SHIFT SELESAI</h2>
+        </div>
+        <div id="kpi-grade-box" class="rounded-lg border px-3.5 py-2 text-right">
+          <div class="text-[10px] text-slate-300">Predikat Kompetensi</div>
+          <div id="kpi-grade" class="font-display text-lg font-bold"></div>
+        </div>
+      </div>
+      <div class="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="rounded-lg border border-slate-700/80 bg-slate-900/70 p-3"><div class="text-[11px] text-slate-400">Total Skor</div><div id="kpi-score" class="mt-1 font-mono-tabular text-2xl font-bold text-orange-400">0</div></div>
+        <div class="rounded-lg border border-slate-700/80 bg-slate-900/70 p-3"><div class="text-[11px] text-slate-400">Akurasi Picking</div><div id="kpi-acc" class="mt-1 font-mono-tabular text-2xl font-bold text-white">100%</div></div>
+        <div class="rounded-lg border border-slate-700/80 bg-slate-900/70 p-3"><div class="text-[11px] text-slate-400">Paket Terkirim</div><div id="kpi-pkg" class="mt-1 font-mono-tabular text-2xl font-bold text-emerald-400">0/3</div></div>
+        <div class="rounded-lg border border-slate-700/80 bg-slate-900/70 p-3"><div class="text-[11px] text-slate-400">Siklus Order</div><div id="kpi-cycle" class="mt-1 font-mono-tabular text-2xl font-bold text-sky-400">-</div></div>
+      </div>
+      <div class="mt-4 rounded-lg border border-slate-700/70 bg-slate-900/50 p-3.5 text-xs grid grid-cols-1 sm:grid-cols-3 gap-2 font-mono-tabular">
+        <div class="flex justify-between rounded bg-[#0B1528] px-2.5 py-1.5"><span class="text-slate-400">Paket:</span><span id="kpi-pts-pkg" class="text-emerald-400">+0</span></div>
+        <div class="flex justify-between rounded bg-[#0B1528] px-2.5 py-1.5"><span class="text-slate-400">Bonus Waktu:</span><span id="kpi-pts-time" class="text-sky-400">+0</span></div>
+        <div class="flex justify-between rounded bg-[#0B1528] px-2.5 py-1.5"><span class="text-slate-400">Penalti:</span><span id="kpi-pts-pen" class="text-rose-400">-0</span></div>
+      </div>
+      <div class="mt-4 rounded-lg border border-slate-700/70 bg-[#0B1528] p-3.5">
+        <div class="text-xs font-semibold text-orange-400">Umpan Balik Edukatif Manajemen Logistik:</div>
+        <ul id="kpi-lessons" class="mt-1.5 space-y-1 text-xs text-slate-300 list-disc pl-4"></ul>
+      </div>
+      <div class="mt-5 flex justify-end gap-2.5 border-t border-slate-700/80 pt-4">
+        <button id="btn-kpi-menu" type="button" class="rounded-lg border border-slate-600 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-700 cursor-pointer">Pilih Level</button>
+        <button id="btn-kpi-again" type="button" class="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-orange-400 cursor-pointer">Main Lagi</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(() => {
+  const WORLD_W = 960, WORLD_H = 620;
+  const LEVEL_CONFIGS = {
+    1: { level: 1, title: 'Level 1: Magang', subtitle: 'Discrete Picking', duration: 60, concurrent: 1, totalOrders: 3, skusPerOrder: 3, forklifts: 1, flSpeed: 88, hazards: false, blindCount: false, desc: '1 pesanan per siklus, waktu 60 detik, 3 SKU/order, kecepatan forklift lambat.' },
+    2: { level: 2, title: 'Level 2: Operator Senior', subtitle: 'Batch Picking', duration: 75, concurrent: 2, totalOrders: 4, skusPerOrder: 3, forklifts: 2, flSpeed: 122, hazards: true, blindCount: false, desc: '2 pesanan sekaligus (Batch), waktu 75 detik, rintangan kotak jatuh & tumpahan oli, wajib Handling Label tepat.' },
+    3: { level: 3, title: 'Level 3: Kepala Gudang', subtitle: 'Zone & Rush Hour', duration: 90, concurrent: 3, totalOrders: 5, skusPerOrder: 3, forklifts: 2, flSpeed: 158, hazards: true, blindCount: true, desc: '3 pesanan kilat, 90 detik, Blind Count / Selisih Stok (Zona Cadangan), rintangan cepat & penalti rute/label.' }
+  };
+
+  const LABEL_META = {
+    FRAGILE: { title: 'FRAGILE', subtitle: 'Barang Mudah Pecah' },
+    THIS_WAY_UP: { title: 'THIS WAY UP', subtitle: 'Posisi Tutup di Atas' },
+    KEEP_DRY: { title: 'KEEP DRY', subtitle: 'Jaga Tetap Kering' }
+  };
+
+  const SKUS = [
+    { id: 'E01', name: 'Kaca Optik Lab', cat: 'ELECTRONICS', rack: 'A1', label: 'FRAGILE', hint: 'Lensa optik presisi rentan retak', color: '#38BDF8' },
+    { id: 'E02', name: 'Panel Sensor PLC', cat: 'ELECTRONICS', rack: 'A2', label: 'FRAGILE', hint: 'Komponen elektronik sensitif benturan', color: '#38BDF8' },
+    { id: 'C01', name: 'Cairan Pelumas SAE', cat: 'CHEMICALS', rack: 'A3', label: 'THIS_WAY_UP', hint: 'Jerigen cairan wajib berdiri tegak', color: '#F59E0B' },
+    { id: 'C02', name: 'Reagen Kimia Industri', cat: 'CHEMICALS', rack: 'A4', label: 'THIS_WAY_UP', hint: 'Botol kimia bersegel tutup atas', color: '#F59E0B' },
+    { id: 'T01', name: 'Kain Katun Ekspor', cat: 'TEXTILE', rack: 'B1', label: 'KEEP_DRY', hint: 'Gulungan tekstil anti-lembab', color: '#10B981' },
+    { id: 'T02', name: 'Karton Kertas Arsip', cat: 'TEXTILE', rack: 'B2', label: 'KEEP_DRY', hint: 'Media kertas sensitif air & hujan', color: '#10B981' },
+    { id: 'E03', name: 'Monitor Scanner Barcode', cat: 'ELECTRONICS', rack: 'B3', label: 'FRAGILE', hint: 'Layar kaca & modul optik', color: '#38BDF8' },
+    { id: 'C03', name: 'Solvent Pembersih Mesin', cat: 'CHEMICALS', rack: 'B4', label: 'THIS_WAY_UP', hint: 'Cairan kimia industri mudah bocor', color: '#F59E0B' }
+  ];
+
+  const ZONES = [
+    { id: 'RACK-A1', label: 'RAK A1', sub: 'Kaca Optik', x: 34, y: 74, w: 98, h: 92, type: 'RACK', rack: 'A1', cat: 'ELECTRONICS' },
+    { id: 'RACK-A2', label: 'RAK A2', sub: 'Sensor PLC', x: 34, y: 186, w: 98, h: 92, type: 'RACK', rack: 'A2', cat: 'ELECTRONICS' },
+    { id: 'RACK-A3', label: 'RAK A3', sub: 'Pelumas SAE', x: 34, y: 298, w: 98, h: 92, type: 'RACK', rack: 'A3', cat: 'CHEMICALS' },
+    { id: 'RACK-A4', label: 'RAK A4', sub: 'Reagen Kimia', x: 34, y: 410, w: 98, h: 92, type: 'RACK', rack: 'A4', cat: 'CHEMICALS' },
+    { id: 'RACK-B1', label: 'RAK B1', sub: 'Kain Ekspor', x: 828, y: 74, w: 98, h: 92, type: 'RACK', rack: 'B1', cat: 'TEXTILE' },
+    { id: 'RACK-B2', label: 'RAK B2', sub: 'Kertas Arsip', x: 828, y: 186, w: 98, h: 92, type: 'RACK', rack: 'B2', cat: 'TEXTILE' },
+    { id: 'RACK-B3', label: 'RAK B3', sub: 'Scanner LCD', x: 828, y: 298, w: 98, h: 92, type: 'RACK', rack: 'B3', cat: 'ELECTRONICS' },
+    { id: 'RACK-B4', label: 'RAK B4', sub: 'Solvent Cair', x: 828, y: 410, w: 98, h: 92, type: 'RACK', rack: 'B4', cat: 'CHEMICALS' },
+    { id: 'ZONE-BUFFER', label: 'ZONA CADANGAN', sub: 'Buffer Stock', x: 380, y: 24, w: 200, h: 66, type: 'BUFFER', rack: 'BUFFER' },
+    { id: 'CENTER-ISLAND', label: 'STAGING PALLET', sub: 'Koridor U-Flow', x: 380, y: 204, w: 200, h: 162, type: 'DIVIDER' },
+    { id: 'ZONE-PACKING', label: 'MEJA PACKING', sub: 'QC & Handling Label', x: 205, y: 522, w: 225, h: 74, type: 'PACKING' },
+    { id: 'ZONE-DOCK', label: 'LOADING DOCK', sub: 'Area Dispatch Truk', x: 530, y: 522, w: 235, h: 74, type: 'DOCK' }
+  ];
+
+  const CUSTOMERS = ['PT Nusantara Logistik', 'CV Mitra Industri', 'PT Elektronika Presisi', 'PT Kimia Sentosa', 'PT Tekstil Sejahtera', 'UD Harapan Jaya'];
+
+  // Web Audio Synth
+  const audio = {
+    ctx: null, muted: false,
+    ensure() {
+      if (this.muted) return null;
+      if (!this.ctx) { const C = window.AudioContext || window.webkitAudioContext; if (C) this.ctx = new C(); }
+      if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+      return this.ctx;
+    },
+    tone(freq, dur, type='sine', vol=0.11, delay=0, slide=null) {
+      const ctx = this.ensure(); if (!ctx) return;
+      const t = ctx.currentTime + delay, o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, slide), t + dur);
+      g.gain.setValueAtTime(0.001, t); g.gain.linearRampToValueAtTime(vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + dur + 0.02);
+    },
+    pick() { this.tone(1320, 0.06, 'square', 0.06, 0); this.tone(880, 0.14, 'triangle', 0.13, 0.06); },
+    alert() { this.tone(740, 0.12, 'sawtooth', 0.08, 0); this.tone(554, 0.16, 'sawtooth', 0.08, 0.13); },
+    pack() { this.tone(440, 0.08, 'triangle', 0.1, 0); this.tone(659, 0.16, 'triangle', 0.12, 0.09); },
+    dispatch() { this.tone(523, 0.09, 'triangle', 0.12, 0); this.tone(784, 0.1, 'triangle', 0.13, 0.1); this.tone(1046, 0.22, 'triangle', 0.15, 0.2); },
+    err() { this.tone(210, 0.15, 'sawtooth', 0.11, 0, 140); this.tone(160, 0.2, 'sawtooth', 0.11, 0.12, 100); },
+    hit() { this.tone(150, 0.22, 'sawtooth', 0.14, 0, 55); },
+    horn() {
+      const v = Math.floor(Math.random()*3);
+      if (v===0) { const f = 390+Math.random()*60; this.tone(f, 0.09, 'sawtooth', 0.065, 0); this.tone(f*1.12, 0.1, 'sawtooth', 0.065, 0.12); }
+      else if (v===1) { const f = 280+Math.random()*40; this.tone(f, 0.22, 'sawtooth', 0.075, 0, f*0.94); }
+      else { const f = 680+Math.random()*90; this.tone(f, 0.06, 'square', 0.05, 0); this.tone(f, 0.06, 'square', 0.05, 0.09); this.tone(f, 0.07, 'square', 0.055, 0.18); }
+    },
+    win() { [523,659,784,1046].forEach((n,i)=>this.tone(n, i===3?0.32:0.12, 'triangle', 0.12, i*0.1)); }
+  };
+
+  let selectedLevel = 1, state = null, packingOrder = null, selectedPackLabel = null;
+  const heldKeys = new Set(), touchDir = { up:false, down:false, left:false, right:false };
+
+  const el = (id) => document.getElementById(id);
+  const canvas = el('game-canvas'), ctx = canvas.getContext('2d');
+
+  function makeOrder(idx, cfg, elapsed) {
+    const labels = ['FRAGILE', 'THIS_WAY_UP', 'KEEP_DRY'];
+    const primary = labels[(idx + Math.floor(Math.random()*3)) % 3];
+    const match = SKUS.filter(s => s.label === primary).sort(() => Math.random() - 0.5);
+    const other = SKUS.filter(s => s.label !== primary);
+    const picked = [];
+    for (let i=0; i<cfg.skusPerOrder; i++) {
+      if (i < match.length) picked.push(match[i]);
+      else {
+        const u = other.find(o => !picked.some(p => p.id === o.id));
+        if (u) picked.push(u);
+      }
+    }
+    const blindIdx = cfg.blindCount ? Math.floor(Math.random()*picked.length) : -1;
+    return {
+      id: 'ORD-' + (101 + idx),
+      customer: CUSTOMERS[(idx + Math.floor(Math.random()*CUSTOMERS.length)) % CUSTOMERS.length],
+      requiredLabel: primary,
+      stage: 'PICKING',
+      createdAt: elapsed,
+      items: picked.map((sku, i) => ({ sku, qty: i===0?2:1, pickedQty: 0, blindMissing: i===blindIdx, blindReported: false }))
+    };
+  }
+
+  function makeForklifts(cfg) {
+    const routes = [
+      [{x:245,y:145},{x:245,y:445},{x:715,y:445},{x:715,y:145}],
+      [{x:715,y:445},{x:245,y:445},{x:245,y:145},{x:715,y:145}]
+    ];
+    const cargoCols = ['#D97706', '#0284C7'];
+    return Array.from({length: cfg.forklifts}, (_, i) => {
+      const wp = routes[i%2], baseSpeed = cfg.flSpeed * (i===1?0.92:1);
+      const next = wp[1];
+      return { x: wp[0].x, y: wp[0].y, wp, targetIdx: 1, speed: baseSpeed, baseSpeed, angle: Math.atan2(next.y-wp[0].y, next.x-wp[0].x), warn: 0.8+Math.random()*1.4, hornPulse: 0, cargoColor: cargoCols[i%2] };
+    });
+  }
+
+  function initEngine(lvl, phase) {
+    const cfg = LEVEL_CONFIGS[lvl];
+    const orders = [];
+    for (let i=0; i<cfg.concurrent; i++) orders.push(makeOrder(i, cfg, 0));
+    state = {
+      phase, level: lvl, time: 0, timeRem: cfg.duration, elapsed: 0,
+      score: 0, pkgPts: 0, penPts: 0, delivered: 0, nextOrderIdx: cfg.concurrent,
+      okAct: 0, totAct: 0, wrongRack: 0, wrongLabel: 0, hazHits: 0, blindRes: 0, cycles: [],
+      player: { x: 480, y: 445, angle: -Math.PI/2, walk: 0, stun: 0, slow: 0, invuln: 0, flash: 0 },
+      orders, forklifts: makeForklifts(cfg), hazards: [], hazTimer: 4.5,
+      particles: [], floats: [], shake: 0, nearby: null, banner: null
+    };
+  }
+
+  function renderLevelCards() {
+    const container = el('level-cards');
+    container.innerHTML = '';
+    [1,2,3].forEach(lvl => {
+      const c = LEVEL_CONFIGS[lvl];
+      const active = selectedLevel === lvl;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `flex flex-col justify-between rounded-xl border p-4 text-left transition-all cursor-pointer ${active ? 'border-orange-500 bg-[#14233C] shadow-lg' : 'border-slate-700/90 bg-[#0F1E36]/90 hover:border-slate-500'}`;
+      btn.innerHTML = `
+        <div>
+          <div class="mb-1.5 flex items-center justify-between"><span class="font-mono-tabular text-xs font-semibold text-orange-400">${c.subtitle}</span><span class="font-mono-tabular text-xs text-slate-400">${c.duration}d</span></div>
+          <h2 class="font-display text-2xl font-bold text-white">${c.title}</h2>
+          <p class="mt-1.5 text-xs text-slate-300 leading-relaxed">${c.desc}</p>
+        </div>
+        <div class="mt-4 flex items-center justify-between border-t border-slate-700/70 pt-2.5 text-xs text-slate-400 font-mono-tabular">
+          <span>${c.concurrent} Order Paralel</span><span>Target ${c.totalOrders} Paket</span>
+        </div>`;
+      btn.onclick = () => { selectedLevel = lvl; renderLevelCards(); };
+      container.appendChild(btn);
+    });
+  }
+
+  function setBanner(text, tone, ttl=3) { state.banner = { text, tone, ttl }; }
+  function addParticles(x, y, color, count=14) {
+    for (let i=0; i<count; i++) {
+      const a = Math.random()*Math.PI*2, s = 45 + Math.random()*115;
+      state.particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s, life: 0.5, maxLife: 0.5, size: 2.5+Math.random()*2.5, color });
+    }
+  }
+  function addFloat(x, y, text, color) { state.floats.push({ x, y, text, color, life: 1.5, maxLife: 1.5 }); }
+
+  function updateHud() {
+    const cfg = LEVEL_CONFIGS[state.level];
+    el('hud-level').textContent = `${cfg.title} (${cfg.subtitle})`;
+    el('hud-time').textContent = `${Math.ceil(state.timeRem)}d`;
+    el('hud-time').className = `font-bold ${Math.ceil(state.timeRem)<=15 ? 'text-rose-400' : 'text-white'}`;
+    el('hud-score').textContent = state.score;
+    el('hud-packages').textContent = `${state.delivered}/${cfg.totalOrders}`;
+    const acc = state.totAct > 0 ? Math.round((state.okAct/state.totAct)*100) : 100;
+    el('hud-accuracy').textContent = `${acc}%`;
+
+    const bEl = el('status-banner');
+    if (state.banner && state.phase === 'PLAYING') {
+      const toneCls = state.banner.tone==='error' ? 'border-rose-500/80 bg-rose-950/95 text-rose-100' :
+        state.banner.tone==='warning' ? 'border-amber-500/80 bg-amber-950/95 text-amber-100' :
+        state.banner.tone==='success' ? 'border-emerald-500/80 bg-emerald-950/95 text-emerald-100' :
+        'border-sky-500/70 bg-slate-900/95 text-slate-100';
+      bEl.className = `pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 z-10 max-w-md rounded-lg border px-3.5 py-2 text-center text-xs font-semibold shadow-lg ${toneCls}`;
+      bEl.textContent = state.banner.text;
+    } else {
+      bEl.className = 'hidden';
+    }
+
+    // Picking Slips
+    el('slip-count').textContent = `${state.orders.length} Order`;
+    const list = el('slip-list');
+    list.innerHTML = state.orders.map(o => {
+      const tot = o.items.reduce((a,b)=>a+b.qty,0), got = o.items.reduce((a,b)=>a+b.pickedQty,0);
+      const pct = tot ? Math.round((got/tot)*100) : 0;
+      const border = o.stage==='READY_TO_DISPATCH'?'border-emerald-500/60 bg-emerald-950/25':o.stage==='READY_TO_PACK'?'border-sky-500/60 bg-sky-950/25':'border-slate-700 bg-slate-900/65';
+      const stTxt = o.stage==='PICKING'?'<span class="text-orange-400 font-medium">Tahap 1: Ambil SKU di Rak</span>':o.stage==='READY_TO_PACK'?'<span class="text-sky-400 font-semibold">Tahap 2: Ke Meja Packing</span>':'<span class="text-emerald-400 font-semibold">Tahap 3: Ke Loading Dock</span>';
+      const barCol = o.stage==='READY_TO_DISPATCH'?'bg-emerald-400':o.stage==='READY_TO_PACK'?'bg-sky-400':'bg-orange-500';
+      return `<div class="rounded-lg border p-3 ${border}">
+        <div class="flex justify-between text-xs"><span class="font-mono-tabular font-bold text-white">${o.id}</span><span class="truncate text-[11px] text-slate-400">${o.customer}</span></div>
+        <div class="mt-1.5 flex justify-between text-[11px]">${stTxt}<span class="font-mono-tabular text-slate-400">${pct}%</span></div>
+        <div class="mt-1.5 h-1.5 w-full rounded-full bg-slate-800 overflow-hidden"><div class="h-full ${barCol}" style="width:${pct}%"></div></div>
+        <ul class="mt-2.5 space-y-1.5">${o.items.map(it => {
+          const done = it.pickedQty >= it.qty, buf = it.blindMissing && it.blindReported && !done;
+          return `<li class="flex items-center justify-between gap-2 rounded border px-2 py-1.5 text-xs ${done?'border-emerald-500/30 bg-emerald-950/20 text-slate-400 line-through':buf?'border-amber-500/70 bg-amber-950/30 text-amber-200':'border-slate-800 bg-slate-950/40 text-slate-200'}">
+            <div class="min-w-0 flex-1"><div class="truncate font-medium">${it.qty}x ${it.sku.name}</div><div class="text-[10px] text-slate-400 font-mono-tabular">${buf?'Selisih Stok → ZONA CADANGAN':'Lokasi: RAK '+it.sku.rack}</div></div>
+            <span class="font-mono-tabular text-[11px] font-bold">${it.pickedQty}/${it.qty}</span>
+          </li>`;
+        }).join('')}</ul>
+      </div>`;
+    }).join('');
+
+    const ctxBtn = el('btn-context-action'), tBtn = el('btn-touch-action');
+    if (state.nearby) {
+      const lbl = state.nearby.type==='RACK'?`Ambil di ${state.nearby.label}`:state.nearby.type==='BUFFER'?'Ambil Stok Cadangan':state.nearby.type==='PACKING'?'Proses Meja Packing':'Kirim di Loading Dock';
+      ctxBtn.disabled = false;
+      ctxBtn.className = 'w-full rounded-lg bg-orange-500 px-4 py-2.5 text-xs font-bold text-slate-950 hover:bg-orange-400 cursor-pointer';
+      ctxBtn.textContent = `${lbl} (Spasi)`;
+      tBtn.className = 'pointer-events-auto flex h-16 min-w-[120px] flex-col items-center justify-center rounded-xl border border-orange-400 bg-orange-500 px-4 text-xs font-bold text-slate-950 shadow-lg active:scale-95';
+    } else {
+      ctxBtn.disabled = true;
+      ctxBtn.className = 'w-full rounded-lg bg-slate-800 px-4 py-2.5 text-xs font-bold text-slate-500 cursor-not-allowed';
+      ctxBtn.textContent = 'Dekati Rak / Meja / Dock untuk Aksi';
+      tBtn.className = 'pointer-events-auto flex h-16 min-w-[120px] flex-col items-center justify-center rounded-xl border border-slate-600 bg-slate-900/90 px-4 text-xs font-bold text-slate-300 shadow-lg';
+    }
+  }
+
+  function showScreen(phase) {
+    el('title-screen').classList.toggle('hidden', phase !== 'TITLE');
+    el('hud-bar').classList.toggle('hidden', phase === 'TITLE');
+    el('hud-bar').classList.toggle('flex', phase !== 'TITLE');
+    el('slip-panel').classList.toggle('hidden', phase === 'TITLE');
+    el('slip-panel').classList.toggle('flex', phase !== 'TITLE');
+    el('legend-strip').classList.toggle('hidden', phase !== 'PLAYING');
+    el('touch-controls').classList.toggle('hidden', phase !== 'PLAYING');
+    el('touch-controls').classList.toggle('flex', phase === 'PLAYING');
+    el('pause-modal').classList.toggle('hidden', phase !== 'PAUSED');
+    el('pause-modal').classList.toggle('flex', phase === 'PAUSED');
+    el('packing-modal').classList.toggle('hidden', phase !== 'PACKING_MODAL');
+    el('packing-modal').classList.toggle('flex', phase === 'PACKING_MODAL');
+    el('kpi-modal').classList.toggle('hidden', phase !== 'GAME_OVER');
+    el('kpi-modal').classList.toggle('flex', phase === 'GAME_OVER');
+  }
+
+  function startShift(lvl) {
+    audio.ensure();
+    heldKeys.clear();
+    touchDir.up = touchDir.down = touchDir.left = touchDir.right = false;
+    selectedLevel = lvl;
+    initEngine(lvl, 'PLAYING');
+    showScreen('PLAYING');
+    setBanner(`Shift ${LEVEL_CONFIGS[lvl].title} dimulai! Ambil SKU sesuai Picking Slip.`, 'info', 3.5);
+    updateHud();
+  }
+
+  function finishShift(early) {
+    if (state.phase === 'GAME_OVER') return;
+    state.phase = 'GAME_OVER';
+    const cfg = LEVEL_CONFIGS[state.level];
+    const rem = Math.max(0, Math.ceil(state.timeRem));
+    const tBonus = early ? rem * 10 : 0;
+    state.score = Math.max(0, state.score + tBonus);
+    const acc = state.totAct > 0 ? Math.round((state.okAct/state.totAct)*100) : 100;
+    const avgC = state.cycles.length ? (state.cycles.reduce((a,b)=>a+b,0)/state.cycles.length).toFixed(1)+'d' : '-';
+    let grade = 'Perlu Latihan';
+    if (acc >= 90 && state.delivered >= cfg.totalOrders) grade = 'Sangat Kompeten';
+    else if (acc >= 70 && state.delivered >= Math.max(2, cfg.totalOrders-1)) grade = 'Kompeten';
+
+    audio.win();
+    el('kpi-subtitle').textContent = `RAPOR KPI SISWA · ${cfg.title.toUpperCase()}`;
+    el('kpi-title').textContent = state.delivered >= cfg.totalOrders ? 'SHIFT SELESAI LEBIH AWAL!' : 'WAKTU SHIFT BERAKHIR';
+    el('kpi-grade').textContent = grade;
+    el('kpi-grade-box').className = `rounded-lg border px-3.5 py-2 text-right ${grade==='Sangat Kompeten'?'text-emerald-400 border-emerald-500/60 bg-emerald-950/30':grade==='Kompeten'?'text-sky-400 border-sky-500/60 bg-sky-950/30':'text-amber-400 border-amber-500/60 bg-amber-950/30'}`;
+    el('kpi-score').textContent = state.score;
+    el('kpi-acc').textContent = acc + '%';
+    el('kpi-pkg').textContent = `${state.delivered}/${cfg.totalOrders}`;
+    el('kpi-cycle').textContent = avgC;
+    el('kpi-pts-pkg').textContent = `+${state.pkgPts}`;
+    el('kpi-pts-time').textContent = `+${tBonus}`;
+    el('kpi-pts-pen').textContent = `-${state.penPts}`;
+
+    const lessons = [];
+    lessons.push(state.wrongRack>0 ? `Terjadi ${state.wrongRack}x kesalahan rak picking. Periksa kode lokasi rak di Picking Slip sebelum mengambil.` : 'Akurasi lokasi rak sangat baik: seluruh barang diambil sesuai kode rak.');
+    lessons.push(state.wrongLabel>0 ? `Terdapat ${state.wrongLabel}x kesalahan Handling Label. Elektronik=FRAGILE, Cairan=THIS WAY UP, Tekstil=KEEP DRY.` : 'Klasifikasi Handling Label ISO tepat 100% sesuai karakteristik muatan.');
+    if (cfg.blindCount) lessons.push(`Penanganan selisih stok (Blind Count): ${state.blindRes} kasus dialihkan melalui Zona Cadangan.`);
+    if (state.hazHits>0) lessons.push(`K3 Gudang: ${state.hazHits}x insiden rintangan/forklift. Waspadai jalur forklift & tumpahan oli.`);
+    el('kpi-lessons').innerHTML = lessons.map(l => `<li>${l}</li>`).join('');
+
+    showScreen('GAME_OVER');
+  }
+
+  function handleAction() {
+    if (state.phase !== 'PLAYING' || !state.nearby) return;
+    const z = state.nearby, cfg = LEVEL_CONFIGS[state.level];
+
+    if (z.type === 'RACK') {
+      let ord = null, idx = -1;
+      for (const o of state.orders) {
+        if (o.stage !== 'PICKING') continue;
+        idx = o.items.findIndex(it => it.sku.rack === z.rack && it.pickedQty < it.qty && !(it.blindMissing && it.blindReported));
+        if (idx !== -1) { ord = o; break; }
+      }
+      if (ord) {
+        const it = ord.items[idx];
+        if (it.blindMissing && !it.blindReported) {
+          it.blindReported = true; state.okAct++; state.totAct++; state.blindRes++;
+          audio.alert(); addParticles(state.player.x, state.player.y, '#FBBF24', 14);
+          addFloat(state.player.x, state.player.y-24, 'STOK KOSONG → KE ZONA CADANGAN!', '#FBBF24');
+          setBanner(`Selisih Stok (Blind Count) di ${z.label}! Ambil ${it.sku.name} di ZONA CADANGAN.`, 'warning', 4);
+          updateHud(); return;
+        }
+        it.pickedQty = it.qty; state.okAct++; state.totAct++;
+        audio.pick(); addParticles(state.player.x, state.player.y, it.sku.color, 14);
+        addFloat(state.player.x, state.player.y-24, `✓ ${it.qty}x ${it.sku.name}`, '#38BDF8');
+        if (ord.items.every(x => x.pickedQty >= x.qty)) {
+          ord.stage = 'READY_TO_PACK';
+          setBanner(`Semua SKU ${ord.id} terambil! Bawa ke MEJA PACKING.`, 'success', 3.5);
+        } else {
+          setBanner(`Terambil: ${it.qty}x ${it.sku.name} (${z.label})`, 'info', 2.2);
+        }
+        updateHud(); return;
+      }
+      state.score = Math.max(0, state.score - 30); state.penPts += 30; state.wrongRack++; state.totAct++;
+      state.shake = 0.22; state.player.flash = 0.2; audio.err();
+      addParticles(state.player.x, state.player.y, '#EF4444', 12);
+      addFloat(state.player.x, state.player.y-24, '-30 SALAH RAK!', '#F87171');
+      setBanner(`Salah Rak (-30)! ${z.label} tidak ada di Picking Slip aktif.`, 'error', 3.2);
+      updateHud(); return;
+    }
+
+    if (z.type === 'BUFFER') {
+      let ok = false;
+      for (const o of state.orders) {
+        if (o.stage !== 'PICKING') continue;
+        const it = o.items.find(x => x.blindMissing && x.blindReported && x.pickedQty < x.qty);
+        if (it) {
+          it.pickedQty = it.qty; state.okAct++; state.totAct++; ok = true;
+          audio.pick(); addParticles(state.player.x, state.player.y, '#FBBF24', 15);
+          addFloat(state.player.x, state.player.y-24, `✓ Cadangan: ${it.qty}x ${it.sku.name}`, '#FBBF24');
+          if (o.items.every(x => x.pickedQty >= x.qty)) {
+            o.stage = 'READY_TO_PACK';
+            setBanner(`Stok cadangan lengkap! Bawa ${o.id} ke MEJA PACKING.`, 'success', 3.5);
+          }
+          break;
+        }
+      }
+      if (!ok) setBanner('Zona Cadangan hanya untuk Selisih Stok (Blind Count).', 'info', 2.4);
+      updateHud(); return;
+    }
+
+    if (z.type === 'PACKING') {
+      const ord = state.orders.find(o => o.stage === 'READY_TO_PACK');
+      if (!ord) { audio.err(); setBanner('Ambil semua SKU pesanan dulu sebelum ke Meja Packing.', 'warning', 2.6); updateHud(); return; }
+      packingOrder = ord; selectedPackLabel = null;
+      el('pack-title').textContent = `Verifikasi Paket ${ord.id}`;
+      el('pack-customer').textContent = `Pelanggan: ${ord.customer}`;
+      el('pack-cargo').innerHTML = ord.items.map(it => `<div class="rounded border border-slate-700 bg-[#0B1528] px-2.5 py-1.5 text-xs text-slate-200"><strong class="font-mono-tabular text-white">${it.qty}x</strong> ${it.sku.name}<span class="block text-[10px] text-slate-400">${it.sku.hint}</span></div>`).join('');
+      document.querySelectorAll('.pack-label-btn').forEach(b => b.classList.remove('ring-2','ring-orange-400','bg-slate-800'));
+      el('chk-packing-list').checked = false; el('chk-awb').checked = false;
+      el('pack-error').classList.add('hidden');
+      state.phase = 'PACKING_MODAL'; heldKeys.clear(); showScreen('PACKING_MODAL');
+      return;
+    }
+
+    if (z.type === 'DOCK') {
+      const ready = state.orders.filter(o => o.stage === 'READY_TO_DISPATCH');
+      if (!ready.length) { audio.err(); setBanner('Belum ada paket tersegel! Selesaikan Packing dulu.', 'warning', 2.6); updateHud(); return; }
+      ready.forEach(o => { state.score+=100; state.pkgPts+=100; state.delivered++; state.okAct++; state.totAct++; state.cycles.push(Math.max(1, state.elapsed - o.createdAt)); });
+      state.orders = state.orders.filter(o => o.stage !== 'READY_TO_DISPATCH');
+      while (state.orders.length < cfg.concurrent && state.nextOrderIdx < cfg.totalOrders) {
+        state.orders.push(makeOrder(state.nextOrderIdx++, cfg, state.elapsed));
+      }
+      audio.dispatch(); addParticles(state.player.x, state.player.y+15, '#10B981', 22);
+      addFloat(state.player.x, state.player.y-26, `+${ready.length*100} PAKET TERKIRIM!`, '#34D399');
+      setBanner(`${ready.length} paket berhasil dikirim di Loading Dock!`, 'success', 3);
+      if (state.delivered >= cfg.totalOrders) { finishShift(true); return; }
+      updateHud();
+    }
+  }
+
+  // Packing Modal Listeners
+  document.querySelectorAll('.pack-label-btn').forEach(btn => {
+    btn.onclick = () => {
+      selectedPackLabel = btn.dataset.label;
+      document.querySelectorAll('.pack-label-btn').forEach(b => b.classList.remove('ring-2','ring-orange-400','bg-slate-800'));
+      btn.classList.add('ring-2','ring-orange-400','bg-slate-800');
+      el('pack-error').classList.add('hidden');
+    };
+  });
+  el('btn-check-all-docs').onclick = () => { el('chk-packing-list').checked = true; el('chk-awb').checked = true; el('pack-error').classList.add('hidden'); };
+  el('btn-pack-cancel').onclick = () => { state.phase = 'PLAYING'; packingOrder = null; showScreen('PLAYING'); };
+  el('btn-pack-confirm').onclick = () => {
+    const errEl = el('pack-error');
+    if (!selectedPackLabel) { errEl.textContent = 'Pilih 1 Handling Label yang sesuai.'; errEl.classList.remove('hidden'); return; }
+    if (!el('chk-packing-list').checked || !el('chk-awb').checked) { errEl.textContent = 'Centang Packing List dan Shipping Label (AWB).'; errEl.classList.remove('hidden'); return; }
+    if (selectedPackLabel !== packingOrder.requiredLabel) {
+      state.score = Math.max(0, state.score - 30); state.penPts += 30; state.wrongLabel++; state.totAct++; audio.err();
+      const exp = LABEL_META[packingOrder.requiredLabel];
+      errEl.textContent = `Label kurang tepat (-30 poin)! Muatan ini memerlukan label ${exp.title} (${exp.subtitle}).`;
+      errEl.classList.remove('hidden'); updateHud(); return;
+    }
+    packingOrder.stage = 'READY_TO_DISPATCH';
+    state.okAct++; state.totAct++; state.phase = 'PLAYING'; packingOrder = null;
+    audio.pack(); addParticles(state.player.x, state.player.y, '#38BDF8', 16);
+    addFloat(state.player.x, state.player.y-24, 'PACKING OK → LOADING DOCK', '#38BDF8');
+    setBanner('Paket tersegel & berlabel! Kirim ke LOADING DOCK.', 'success', 3.2);
+    showScreen('PLAYING'); updateHud();
+  };
+
+  // UI Buttons
+  el('btn-start-game').onclick = () => startShift(selectedLevel);
+  el('btn-open-sop').onclick = () => { el('sop-modal').classList.remove('hidden'); el('sop-modal').classList.add('flex'); };
+  el('btn-close-sop').onclick = () => { el('sop-modal').classList.add('hidden'); el('sop-modal').classList.remove('flex'); };
+  const toggleMute = () => {
+    audio.muted = !audio.muted;
+    const icon = audio.muted ? '🔇' : '🔊';
+    el('btn-mute').textContent = icon; el('btn-title-mute').textContent = icon;
+  };
+  el('btn-mute').onclick = toggleMute; el('btn-title-mute').onclick = toggleMute;
+  el('btn-pause').onclick = () => { if (state.phase==='PLAYING'){ state.phase='PAUSED'; showScreen('PAUSED'); } };
+  el('btn-resume').onclick = () => { state.phase='PLAYING'; showScreen('PLAYING'); };
+  el('btn-restart-pause').onclick = () => startShift(selectedLevel);
+  el('btn-menu-pause').onclick = () => { initEngine(selectedLevel, 'TITLE'); showScreen('TITLE'); };
+  el('btn-kpi-again').onclick = () => startShift(selectedLevel);
+  el('btn-kpi-menu').onclick = () => { initEngine(selectedLevel, 'TITLE'); showScreen('TITLE'); };
+  el('btn-context-action').onclick = handleAction;
+  el('btn-touch-action').addEventListener('pointerdown', e => { e.preventDefault(); handleAction(); });
+
+  document.querySelectorAll('.dpad-btn').forEach(b => {
+    const d = b.dataset.dir;
+    b.addEventListener('pointerdown', e => { e.preventDefault(); touchDir[d] = true; });
+    b.addEventListener('pointerup', e => { e.preventDefault(); touchDir[d] = false; });
+    b.addEventListener('pointerleave', () => { touchDir[d] = false; });
+    b.addEventListener('pointercancel', () => { touchDir[d] = false; });
+  });
+
+  window.addEventListener('keydown', e => {
+    if (state.phase === 'PACKING_MODAL') {
+      if (e.key === '1') document.querySelector('[data-label="FRAGILE"]').click();
+      if (e.key === '2') document.querySelector('[data-label="THIS_WAY_UP"]').click();
+      if (e.key === '3') document.querySelector('[data-label="KEEP_DRY"]').click();
+      if (e.key === 'Escape') el('btn-pack-cancel').click();
+      return;
+    }
+    if (e.code === 'Escape' && (state.phase==='PLAYING' || state.phase==='PAUSED')) {
+      e.preventDefault();
+      state.phase = state.phase==='PLAYING' ? 'PAUSED' : 'PLAYING';
+      showScreen(state.phase); return;
+    }
+    if (state.phase === 'TITLE' && (e.code==='Enter' || e.code==='Space')) { e.preventDefault(); startShift(selectedLevel); return; }
+    if (state.phase !== 'PLAYING') return;
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+    if (e.code==='Space' || e.code==='Enter') { if (!e.repeat) handleAction(); return; }
+    heldKeys.add(e.code);
+  });
+  window.addEventListener('keyup', e => heldKeys.delete(e.code));
+  window.addEventListener('blur', () => { heldKeys.clear(); touchDir.up=touchDir.down=touchDir.left=touchDir.right=false; });
+
+  // Collision & Drawing Helpers
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  function resolveRect(cx, cy, r, rect) {
+    const kx = clamp(cx, rect.x, rect.x+rect.w), ky = clamp(cy, rect.y, rect.y+rect.h);
+    const dx = cx-kx, dy = cy-ky, d2 = dx*dx + dy*dy;
+    if (d2 < r*r) {
+      const d = Math.sqrt(d2);
+      if (d > 0.0001) { const ov = r-d; return { x: cx+(dx/d)*ov, y: cy+(dy/d)*ov }; }
+      return Math.abs(cy-rect.y) < Math.abs(rect.y+rect.h-cy) ? { x: cx, y: rect.y-r } : { x: cx, y: rect.y+rect.h+r };
+    }
+    return { x: cx, y: cy };
+  }
+  function distRect(px, py, r) {
+    return Math.hypot(Math.max(r.x-px, 0, px-(r.x+r.w)), Math.max(r.y-py, 0, py-(r.y+r.h)));
+  }
+
+  function drawScene() {
+    ctx.save();
+    ctx.clearRect(0, 0, WORLD_W, WORLD_H);
+    if (state.shake > 0) ctx.translate((Math.random()-0.5)*12, (Math.random()-0.5)*12);
+
+    ctx.fillStyle = '#142033'; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+    ctx.strokeStyle = 'rgba(148,163,184,0.06)'; ctx.lineWidth = 1;
+    for (let x=0; x<=WORLD_W; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,WORLD_H); ctx.stroke(); }
+    for (let y=0; y<=WORLD_H; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(WORLD_W,y); ctx.stroke(); }
+    ctx.strokeStyle = '#334155'; ctx.lineWidth = 8; ctx.strokeRect(4,4,WORLD_W-8,WORLD_H-8);
+
+    ctx.save(); ctx.strokeStyle = 'rgba(245,158,11,0.22)'; ctx.lineWidth = 2.5; ctx.setLineDash([12,10]);
+    ctx.strokeRect(185, 130, 590, 345); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(249,115,22,0.18)'; ctx.font = '700 11px "JetBrains Mono", monospace'; ctx.textAlign = 'center';
+    ctx.fillText('ALUR U-SHAPE: PICKING ZONA A ▼', 245, 116); ctx.fillText('▲ PICKING ZONA B', 715, 116); ctx.fillText('ZONA PACKING ➔ DISPATCH', 480, 504);
+    ctx.restore();
+
+    state.forklifts.forEach(fl => {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(245,158,11,0.13)'; ctx.lineWidth = 26; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); fl.wp.forEach((pt,idx)=>{ if(idx===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y); }); ctx.closePath(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(250,204,21,0.35)'; ctx.lineWidth = 2; ctx.setLineDash([10,14]); ctx.lineDashOffset = -state.time*42;
+      ctx.beginPath(); fl.wp.forEach((pt,idx)=>{ if(idx===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y); }); ctx.closePath(); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    });
+
+    const targetRacks = new Set(); let needBuf=false, needPack=false, needDock=false;
+    state.orders.forEach(o => {
+      if (o.stage==='PICKING') o.items.forEach(it => { if (it.pickedQty<it.qty) { if (it.blindMissing && it.blindReported) needBuf=true; else targetRacks.add(it.sku.rack); } });
+      else if (o.stage==='READY_TO_PACK') needPack=true;
+      else if (o.stage==='READY_TO_DISPATCH') needDock=true;
+    });
+
+    ZONES.forEach(z => {
+      const isT = (z.type==='RACK' && targetRacks.has(z.rack)) || (z.type==='BUFFER' && needBuf) || (z.type==='PACKING' && needPack) || (z.type==='DOCK' && needDock);
+      const isNear = state.nearby && state.nearby.id === z.id;
+      const catCol = z.cat==='ELECTRONICS'?'#38BDF8':z.cat==='CHEMICALS'?'#F59E0B':z.cat==='TEXTILE'?'#10B981':'#94A3B8';
+      ctx.save();
+      if (isT) { ctx.strokeStyle='#F97316'; ctx.globalAlpha=0.5+0.4*Math.sin(state.time*6); ctx.lineWidth=4; ctx.strokeRect(z.x-4,z.y-4,z.w+8,z.h+8); ctx.globalAlpha=1; }
+      ctx.fillStyle = z.type==='DIVIDER'?'#1E293B':z.type==='BUFFER'?'#2A1F14':z.type==='PACKING'?'#1A2D3D':z.type==='DOCK'?'#172E29':'#1C2B42';
+      ctx.fillRect(z.x, z.y, z.w, z.h);
+      ctx.strokeStyle = isNear ? '#F97316' : isT ? '#FB923C' : '#334155'; ctx.lineWidth = isNear?2.8:1.6;
+      ctx.strokeRect(z.x, z.y, z.w, z.h);
+      if (z.type==='RACK') { ctx.fillStyle = catCol; ctx.fillRect(z.x<480?z.x+z.w-6:z.x+1, z.y+4, 5, z.h-8); }
+      ctx.fillStyle = '#F8FAFC'; ctx.font = '700 13px "JetBrains Mono", monospace'; ctx.textAlign = 'center';
+      ctx.fillText(z.label, z.x+z.w/2, z.y+z.h/2-2);
+      ctx.fillStyle = '#94A3B8'; ctx.font = '500 10px "Plus Jakarta Sans", sans-serif';
+      ctx.fillText(z.sub, z.x+z.w/2, z.y+z.h/2+15);
+      ctx.restore();
+    });
+
+    state.hazards.forEach(h => {
+      ctx.save(); ctx.translate(h.x, h.y);
+      if (h.windup > 0) {
+        ctx.strokeStyle='#EF4444'; ctx.lineWidth=2; ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(0,0,h.r+4,0,Math.PI*2); ctx.stroke();
+        ctx.fillStyle='#FCA5A5'; ctx.font='700 12px monospace'; ctx.textAlign='center'; ctx.fillText('!', 0, 4);
+      } else if (h.type==='OIL') {
+        ctx.fillStyle='#0F172A'; ctx.beginPath(); ctx.ellipse(0,0,h.r,h.r*0.7,0.3,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle='#F59E0B'; ctx.lineWidth=1.5; ctx.stroke();
+      } else {
+        ctx.fillStyle='#92400E'; ctx.fillRect(-12,-12,24,24); ctx.strokeStyle='#F59E0B'; ctx.lineWidth=2; ctx.strokeRect(-12,-12,24,24);
+      }
+      ctx.restore();
+    });
+
+    state.forklifts.forEach(fl => {
+      ctx.save(); ctx.translate(fl.x, fl.y);
+      if (fl.hornPulse > 0) {
+        const pr = 1 - fl.hornPulse / 0.8, wr = 24 + pr * 46;
+        ctx.save(); ctx.strokeStyle = '#FACC15'; ctx.globalAlpha = Math.max(0, 1-pr); ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(0,0,wr,0,Math.PI*2); ctx.stroke();
+        ctx.strokeStyle = '#F97316'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(0,0,Math.max(14,wr-12),0,Math.PI*2); ctx.stroke();
+        if (pr < 0.75) { ctx.fillStyle = '#FEF08A'; ctx.font = '700 10px "JetBrains Mono", monospace'; ctx.textAlign = 'center'; ctx.fillText('TIN! K3', 0, -24 - pr*10); }
+        ctx.restore();
+      }
+      ctx.rotate(fl.angle);
+      const sg = ctx.createRadialGradient(54,0,2,54,0,28); sg.addColorStop(0,'rgba(56,189,248,0.42)'); sg.addColorStop(1,'rgba(56,189,248,0)');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(54,0,28,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#0F172A'; ctx.fillRect(-16,-17,9,4); ctx.fillRect(6,-17,9,4); ctx.fillRect(-16,13,9,4); ctx.fillRect(6,13,9,4);
+      const fb = Math.sin(state.time*9)*0.8;
+      ctx.fillStyle = '#CBD5E1'; ctx.fillRect(14+fb,-10,16,4); ctx.fillRect(14+fb,6,16,4);
+      ctx.fillStyle = '#78350F'; ctx.fillRect(17+fb,-11,13,22);
+      ctx.fillStyle = fl.cargoColor; ctx.fillRect(18+fb,-9,11,18);
+      ctx.fillStyle = '#F97316'; ctx.fillRect(-18,-14,34,28); ctx.strokeStyle='#0F172A'; ctx.lineWidth=2; ctx.strokeRect(-18,-14,34,28);
+      ctx.fillStyle = '#1E293B'; ctx.fillRect(-17,-10,4,20); ctx.fillStyle = '#FACC15'; ctx.fillRect(-17,-7,4,4); ctx.fillRect(-17,3,4,4);
+      ctx.fillStyle = '#1E293B'; ctx.fillRect(-10,-10,18,20);
+      ctx.fillStyle = Math.sin(state.time*14)>0 ? '#FACC15' : '#92400E'; ctx.beginPath(); ctx.arc(-12,0,4,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    });
+
+    const p = state.player;
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.angle);
+    ctx.fillStyle = p.flash>0 ? '#FFFFFF' : '#EAB308'; ctx.fillRect(-10,-12,20,24); ctx.strokeStyle='#0F172A'; ctx.lineWidth=2; ctx.strokeRect(-10,-12,20,24);
+    if (state.orders.some(o=>o.stage==='READY_TO_DISPATCH')) { ctx.fillStyle='#D97706'; ctx.fillRect(10,-10,15,20); }
+    ctx.fillStyle='#F97316'; ctx.beginPath(); ctx.arc(0,0,9,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    state.particles.forEach(pt => { ctx.globalAlpha=Math.max(0,pt.life/pt.maxLife); ctx.fillStyle=pt.color; ctx.beginPath(); ctx.arc(pt.x,pt.y,pt.size,0,Math.PI*2); ctx.fill(); });
+    ctx.globalAlpha = 1;
+    state.floats.forEach(ft => { ctx.globalAlpha=Math.min(1,ft.life/ft.maxLife); ctx.font='700 13px sans-serif'; ctx.textAlign='center'; ctx.fillStyle=ft.color; ctx.fillText(ft.text, ft.x, ft.y); });
+    ctx.restore();
+  }
+
+  let lastT = performance.now(), hudAcc = 0, lastSec = -1;
+  function loop(now) {
+    const dt = Math.min((now - lastT)/1000, 0.05); lastT = now;
+    state.time += dt;
+    const cfg = LEVEL_CONFIGS[state.level];
+
+    if (state.phase==='TITLE' || state.phase==='PLAYING') {
+      state.forklifts.forEach(fl => {
+        const tg = fl.wp[fl.targetIdx], dx = tg.x-fl.x, dy = tg.y-fl.y, d = Math.hypot(dx,dy);
+        if (d < 10) fl.targetIdx = (fl.targetIdx+1)%fl.wp.length;
+        else {
+          const des = Math.atan2(dy,dx); let diff = des - fl.angle;
+          while (diff > Math.PI) diff -= Math.PI*2; while (diff < -Math.PI) diff += Math.PI*2;
+          fl.angle += diff * Math.min(1, dt*8.5);
+          fl.speed = fl.baseSpeed * (d < 42 ? 0.68 : 1.0);
+          fl.x += (dx/d)*fl.speed*dt; fl.y += (dy/d)*fl.speed*dt;
+        }
+        if (fl.warn > 0) fl.warn = Math.max(0, fl.warn - dt);
+        if (fl.hornPulse > 0) fl.hornPulse = Math.max(0, fl.hornPulse - dt);
+      });
+    }
+
+    if (state.phase === 'PLAYING') {
+      state.elapsed += dt;
+      state.timeRem = Math.max(0, state.timeRem - dt);
+      if (state.timeRem <= 0) finishShift(false);
+      else {
+        const p = state.player;
+        if (p.stun>0) p.stun = Math.max(0,p.stun-dt);
+        if (p.slow>0) p.slow = Math.max(0,p.slow-dt);
+        if (p.invuln>0) p.invuln = Math.max(0,p.invuln-dt);
+        if (p.flash>0) p.flash = Math.max(0,p.flash-dt);
+
+        let ix=0, iy=0;
+        if (heldKeys.has('KeyA')||heldKeys.has('ArrowLeft')||touchDir.left) ix--;
+        if (heldKeys.has('KeyD')||heldKeys.has('ArrowRight')||touchDir.right) ix++;
+        if (heldKeys.has('KeyW')||heldKeys.has('ArrowUp')||touchDir.up) iy--;
+        if (heldKeys.has('KeyS')||heldKeys.has('ArrowDown')||touchDir.down) iy++;
+
+        if (p.stun<=0 && (ix!==0 || iy!==0)) {
+          const len = Math.hypot(ix,iy), spd = p.slow>0 ? 120 : 240;
+          p.x += (ix/len)*spd*dt; p.y += (iy/len)*spd*dt; p.angle = Math.atan2(iy,ix);
+        }
+        p.x = clamp(p.x, 24, WORLD_W-24); p.y = clamp(p.y, 24, WORLD_H-24);
+        ZONES.forEach(z => { const r = resolveRect(p.x, p.y, 16, z); p.x=r.x; p.y=r.y; });
+
+        let best = null, bestD = 38;
+        ZONES.forEach(z => { if (z.type!=='DIVIDER') { const d = distRect(p.x,p.y,z); if (d<bestD){ bestD=d; best=z; } } });
+        state.nearby = best;
+
+        if (cfg.hazards) {
+          state.hazTimer -= dt;
+          if (state.hazTimer <= 0) {
+            state.hazTimer = state.level===3 ? 4.2 : 6;
+            if (state.hazards.length < 4) {
+              const spots = [{x:250,y:245},{x:250,y:380},{x:710,y:245},{x:710,y:380},{x:480,y:145},{x:480,y:445}];
+              const sp = spots[Math.floor(Math.random()*spots.length)];
+              if (Math.hypot(sp.x-p.x, sp.y-p.y) > 95) state.hazards.push({ type: Math.random()>0.45?'OIL':'CRATE', x: sp.x, y: sp.y, r: 17, ttl: 11, windup: 1.35 });
+            }
+          }
+        }
+
+        for (let i=state.hazards.length-1; i>=0; i--) {
+          const h = state.hazards[i];
+          if (h.windup > 0) { h.windup -= dt; continue; }
+          h.ttl -= dt; if (h.ttl <= 0) { state.hazards.splice(i,1); continue; }
+          if (p.invuln<=0 && Math.hypot(p.x-h.x, p.y-h.y) < 16+h.r-3) {
+            state.hazHits++; audio.hit();
+            if (h.type==='OIL') { p.slow=1.8; p.invuln=1.2; addFloat(p.x,p.y-24,'LICIN! OLI TUMPAH','#FBBF24'); }
+            else { p.stun=0.5; p.invuln=1.5; state.shake=0.25; addFloat(p.x,p.y-24,'TERBENTUR KOTAK!','#F87171'); state.hazards.splice(i,1); }
+          }
+        }
+
+        for (const fl of state.forklifts) {
+          const d = Math.hypot(p.x-fl.x, p.y-fl.y);
+          if (d < 165 && fl.warn <= 0 && (d < 105 || Math.random() < 0.08)) {
+            fl.warn = 2.4 + Math.random()*2.2;
+            fl.hornPulse = 0.8;
+            audio.horn();
+            if (d < 110) addFloat(fl.x, fl.y-26, 'K3: WASPADA FORKLIFT!', '#FACC15');
+          }
+          if (p.invuln <= 0 && d < 34) {
+            p.stun=0.55; p.invuln=1.6; p.flash=0.25; state.hazHits++; state.shake=0.28; audio.hit();
+            const a = Math.atan2(p.y-fl.y, p.x-fl.x); p.x+=Math.cos(a)*28; p.y+=Math.sin(a)*28;
+            addFloat(p.x,p.y-24,'AWAS FORKLIFT!','#FB923C'); break;
+          }
+        }
+
+        if (state.banner) { state.banner.ttl -= dt; if (state.banner.ttl<=0) state.banner = null; }
+      }
+    }
+
+    for (let i=state.particles.length-1; i>=0; i--) { const pt=state.particles[i]; pt.x+=pt.vx*dt; pt.y+=pt.vy*dt; pt.life-=dt; if(pt.life<=0) state.particles.splice(i,1); }
+    for (let i=state.floats.length-1; i>=0; i--) { const ft=state.floats[i]; ft.y-=26*dt; ft.life-=dt; if(ft.life<=0) state.floats.splice(i,1); }
+    if (state.shake>0) state.shake = Math.max(0, state.shake-dt);
+
+    drawScene();
+
+    hudAcc += dt;
+    const sec = Math.ceil(state.timeRem);
+    if (state.phase==='PLAYING' && (hudAcc>=0.15 || sec!==lastSec)) { hudAcc=0; lastSec=sec; updateHud(); }
+
+    requestAnimationFrame(loop);
+  }
+
+  renderLevelCards();
+  initEngine(1, 'TITLE');
+  showScreen('TITLE');
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
