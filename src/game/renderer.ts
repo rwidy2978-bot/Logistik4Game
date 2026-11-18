@@ -27,6 +27,7 @@ export interface RenderState {
   particles: Particle[];
   floatingTexts: FloatingText[];
   nearbyZoneId: string | null;
+  tutorialTarget: { x: number; y: number; label: string } | null;
   shakeOffset: { x: number; y: number };
   time: number;
 }
@@ -247,6 +248,49 @@ export function renderWarehouseScene(
   // 5. Forklifts
   for (const fl of state.forklifts) {
     drawForklift(ctx, fl, state.time);
+  }
+
+  // 5.5 Tutorial Guide Vector (when interactive tutorial is active)
+  if (state.tutorialTarget) {
+    const { x: tx, y: ty, label } = state.tutorialTarget;
+    const dx = tx - state.player.x;
+    const dy = ty - state.player.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > 34) {
+      ctx.save();
+      ctx.strokeStyle = '#FACC15';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([7, 7]);
+      ctx.lineDashOffset = -state.time * 48;
+      ctx.globalAlpha = 0.72;
+      ctx.beginPath();
+      ctx.moveTo(state.player.x, state.player.y);
+      ctx.lineTo(tx, ty);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Target pulse beacon
+      const ringR = 16 + Math.sin(state.time * 7) * 5;
+      ctx.strokeStyle = '#F97316';
+      ctx.lineWidth = 2.5;
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.arc(tx, ty, ringR, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = '#0B1528';
+      const w = ctx.measureText(label).width + 14;
+      drawRoundedRect(ctx, tx - w / 2, ty - 34, w, 19, 5);
+      ctx.fill();
+      ctx.strokeStyle = '#FACC15';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.fillStyle = '#FEF08A';
+      ctx.font = '700 10px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, tx, ty - 21);
+      ctx.restore();
+    }
   }
 
   // 6. Player Operator

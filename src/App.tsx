@@ -11,6 +11,7 @@ import {
   Particle,
   RectZone,
   ShiftStats,
+  TutorialStep,
 } from './game/types';
 import { soundEngine } from './game/audio';
 import {
@@ -27,6 +28,7 @@ import { PickingSlipPanel } from './components/PickingSlipPanel';
 import { PackingModal } from './components/PackingModal';
 import { TouchControls } from './components/TouchControls';
 import { KpiReportModal } from './components/KpiReportModal';
+import { TutorialOverlay } from './components/TutorialOverlay';
 import { Pause, Play, RotateCcw, Volume2, VolumeX, Home } from 'lucide-react';
 
 interface EngineState {
@@ -69,6 +71,8 @@ interface EngineState {
   shakeIntensity: number;
   nearbyZone: RectZone | null;
   statusBanner: { text: string; tone: 'info' | 'success' | 'warning' | 'error'; ttl: number } | null;
+  tutorialStep: TutorialStep;
+  tutorialCompletedTimer: number;
 }
 
 function clamp(val: number, min: number, max: number): number {
@@ -158,6 +162,8 @@ function createInitialEngine(level: DifficultyLevel, phase: GamePhase): EngineSt
     shakeIntensity: 0,
     nearbyZone: null,
     statusBanner: null,
+    tutorialStep: 'OFF',
+    tutorialCompletedTimer: 0,
   };
 }
 
@@ -173,6 +179,7 @@ export default function App() {
   });
 
   const [selectedLevel, setSelectedLevel] = useState<DifficultyLevel>(1);
+  const [tutorialEnabled, setTutorialEnabled] = useState<boolean>(true);
   const [phase, setPhase] = useState<GamePhase>('TITLE');
   const [muted, setMuted] = useState(false);
   const [packingOrder, setPackingOrder] = useState<Order | null>(null);
@@ -187,6 +194,7 @@ export default function App() {
     activeOrders: [],
     nearbyPrompt: null,
     statusBanner: null,
+    tutorialStep: 'OFF',
   });
 
   const syncHudFromEngine = useCallback(() => {
@@ -215,6 +223,7 @@ export default function App() {
       statusBanner: st.statusBanner
         ? { text: st.statusBanner.text, tone: st.statusBanner.tone }
         : null,
+      tutorialStep: st.tutorialStep,
     });
   }, []);
 
@@ -347,19 +356,30 @@ export default function App() {
       heldKeysRef.current.clear();
       touchDirRef.current = { up: false, down: false, left: false, right: false };
       engineRef.current = createInitialEngine(levelToStart, 'PLAYING');
+      engineRef.current.tutorialStep = tutorialEnabled ? 'PICKING' : 'OFF';
       setSelectedLevel(levelToStart);
       setFinalStats(null);
       setPackingOrder(null);
       setPhase('PLAYING');
       setBanner(
-        `Shift ${LEVEL_CONFIGS[levelToStart].title} dimulai! Ambil SKU sesuai Picking Slip.`,
+        tutorialEnabled
+          ? 'Mode Tutorial Aktif: Ikuti panduan langkah-demi-langkah di kiri atas.'
+          : `Shift ${LEVEL_CONFIGS[levelToStart].title} dimulai! Ambil SKU sesuai Picking Slip.`,
         'info',
         3.5
       );
       syncHudFromEngine();
     },
-    [syncHudFromEngine]
+    [syncHudFromEngine, tutorialEnabled]
   );
+
+  const handleSkipTutorial = useCallback(() => {
+    const st = engineRef.current;
+    st.tutorialStep = 'OFF';
+    st.tutorialCompletedTimer = 0;
+    setBanner('Tutorial dilewati. Waktu shift berjalan normal!', 'info', 2.6);
+    syncHudFromEngine();
+  }, [syncHudFromEngine]);
 
   const handleInteraction = useCallback(() => {
     const st = engineRef.current;
@@ -427,6 +447,9 @@ export default function App() {
         const allPicked = matchedOrder.items.every((it) => it.pickedQty >= it.qty);
         if (allPicked) {
           matchedOrder.stage = 'READY_TO_PACK';
+          if (st.tutorialStep === 'PICKING') {
+            st.tutorialStep = 'GO_PACKING';
+          }
           setBanner(
             `Semua SKU ${matchedOrder.id} terambil! Bawa ke MEJA PACKING.`,
             'success',
@@ -484,6 +507,9 @@ export default function App() {
 
           if (order.items.every((it) => it.pickedQty >= it.qty)) {
             order.stage = 'READY_TO_PACK';
+            if (st.tutorialStep === 'PICKING') {
+              st.tutorialStep = 'GO_PACKING';
+            }
             setBanner(
               `Stok cadangan lengkap! Bawa ${order.id} ke MEJA PACKING.`,
               'success',
@@ -514,9 +540,13 @@ export default function App() {
       }
 
       st.phase = 'PACKING_MODAL';
+      if (st.tutorialStep === 'GO_PACKING') {
+        st.tutorialStep = 'DO_PACKING';
+      }
       setPhase('PACKING_MODAL');
       setPackingOrder({ ...readyOrder, items: readyOrder.items.map((it) => ({ ...it })) });
       heldKeysRef.current.clear();
+      syncHudFromEngine();
       return;
     }
 
@@ -564,6 +594,11 @@ export default function App() {
         3.0
       );
 
+      if (st.tutorialStep === 'DISPATCH') {
+        st.tutorialStep = 'COMPLETED';
+        st.tutorialCompletedTimer = 3.2;
+      }
+
       if (st.packagesDelivered >= cfg.totalShiftOrders) {
         finishShift(true);
         return;
@@ -596,6 +631,9 @@ export default function App() {
       st.correctActions += 1;
       st.totalActions += 1;
       st.phase = 'PLAYING';
+      if (st.tutorialStep === 'DO_PACKING') {
+        st.tutorialStep = 'DISPATCH';
+      }
       setPhase('PLAYING');
       setPackingOrder(null);
       soundEngine.playPackingComplete();
@@ -608,10 +646,15 @@ export default function App() {
   );
 
   const handleCancelPack = useCallback(() => {
-    engineRef.current.phase = 'PLAYING';
+    const st = engineRef.current;
+    st.phase = 'PLAYING';
+    if (st.tutorialStep === 'DO_PACKING') {
+      st.tutorialStep = 'GO_PACKING';
+    }
     setPhase('PLAYING');
     setPackingOrder(null);
-  }, []);
+    syncHudFromEngine();
+  }, [syncHudFromEngine]);
 
   const togglePause = useCallback(() => {
     const st = engineRef.current;
@@ -737,8 +780,20 @@ export default function App() {
       }
 
       if (st.phase === 'PLAYING') {
-        st.elapsedShift += dt;
-        st.timeRemaining = Math.max(0, st.timeRemaining - dt);
+        const isTutorialGuided =
+          st.tutorialStep !== 'OFF' && st.tutorialStep !== 'COMPLETED';
+
+        if (st.tutorialStep === 'COMPLETED') {
+          st.tutorialCompletedTimer -= dt;
+          if (st.tutorialCompletedTimer <= 0) {
+            st.tutorialStep = 'OFF';
+          }
+        }
+
+        if (!isTutorialGuided) {
+          st.elapsedShift += dt;
+          st.timeRemaining = Math.max(0, st.timeRemaining - dt);
+        }
 
         if (st.timeRemaining <= 0) {
           finishShift(false);
@@ -947,6 +1002,34 @@ export default function App() {
             0
           );
 
+          let tutorialTarget: { x: number; y: number; label: string } | null = null;
+          if (st.phase === 'PLAYING') {
+            if (st.tutorialStep === 'PICKING') {
+              const firstOrder = st.activeOrders[0];
+              const nextIt = firstOrder?.items.find((it) => it.pickedQty < it.qty);
+              if (nextIt) {
+                const targetRackId =
+                  nextIt.blindCountMissing && nextIt.blindCountReported
+                    ? 'BUFFER'
+                    : nextIt.sku.rackId;
+                const z = WAREHOUSE_ZONES.find((zn) => zn.rackId === targetRackId);
+                if (z) {
+                  tutorialTarget = {
+                    x: z.x + z.w / 2,
+                    y: z.y + z.h / 2,
+                    label: targetRackId === 'BUFFER' ? 'ZONA CADANGAN' : `RAK ${targetRackId}`,
+                  };
+                }
+              }
+            } else if (st.tutorialStep === 'GO_PACKING') {
+              const z = WAREHOUSE_ZONES.find((zn) => zn.type === 'PACKING');
+              if (z) tutorialTarget = { x: z.x + z.w / 2, y: z.y + z.h / 2, label: 'MEJA PACKING' };
+            } else if (st.tutorialStep === 'DISPATCH') {
+              const z = WAREHOUSE_ZONES.find((zn) => zn.type === 'DOCK');
+              if (z) tutorialTarget = { x: z.x + z.w / 2, y: z.y + z.h / 2, label: 'LOADING DOCK' };
+            }
+          }
+
           renderWarehouseScene(ctx, {
             player: {
               ...st.player,
@@ -959,6 +1042,7 @@ export default function App() {
             particles: st.particles,
             floatingTexts: st.floatingTexts,
             nearbyZoneId: st.nearbyZone ? st.nearbyZone.id : null,
+            tutorialTarget,
             shakeOffset,
             time: st.time,
           });
@@ -997,7 +1081,13 @@ export default function App() {
       {/* Top Industrial HUD Bar (shown during active gameplay) */}
       {phase !== 'TITLE' && (
         <header className="flex h-13 shrink-0 items-center justify-between gap-4 border-b border-slate-700/80 bg-[#0F1E36] px-4">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img
+              src="/assets/aistudio/logo_kecil__stm_kapal_baru_0c25b1d6.png"
+              alt="Logo SMK Tanjung Priok 1"
+              referrerPolicy="no-referrer"
+              className="h-7 w-7 shrink-0 object-contain"
+            />
             <span className="font-display text-lg font-extrabold tracking-wide text-white whitespace-nowrap">
               WAREHOUSE GRAND PRIX
             </span>
@@ -1074,8 +1164,17 @@ export default function App() {
             className="max-h-full max-w-full rounded-xl border border-slate-700/80 bg-[#142033] shadow-2xl object-contain"
           />
 
+          {/* Interactive Step-by-Step Tutorial Overlay */}
+          {phase === 'PLAYING' && hud.tutorialStep !== 'OFF' && (
+            <TutorialOverlay
+              step={hud.tutorialStep}
+              firstOrder={hud.activeOrders[0]}
+              onSkip={handleSkipTutorial}
+            />
+          )}
+
           {/* Non-occluding Status Toast (top-center inside canvas area, pointer-events-none) */}
-          {phase === 'PLAYING' && hud.statusBanner && (
+          {phase === 'PLAYING' && hud.statusBanner && hud.tutorialStep === 'OFF' && (
             <div className="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 z-10 max-w-md px-3">
               <div
                 className={`rounded-lg border px-3.5 py-2 text-center text-xs font-semibold shadow-lg ${
@@ -1143,6 +1242,8 @@ export default function App() {
           onStartGame={() => startShift(selectedLevel)}
           muted={muted}
           onToggleMute={toggleMute}
+          tutorialEnabled={tutorialEnabled}
+          onToggleTutorial={() => setTutorialEnabled((v) => !v)}
         />
       )}
 
@@ -1150,6 +1251,7 @@ export default function App() {
       {phase === 'PACKING_MODAL' && packingOrder && (
         <PackingModal
           order={packingOrder}
+          tutorialActive={hud.tutorialStep === 'DO_PACKING'}
           onWrongLabel={handleWrongLabelInModal}
           onConfirmPack={handleConfirmPack}
           onCancel={handleCancelPack}

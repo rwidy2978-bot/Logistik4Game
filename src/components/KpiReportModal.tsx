@@ -28,15 +28,23 @@ export const KpiReportModal: React.FC<KpiReportModalProps> = ({
       <div className="w-full max-w-2xl rounded-xl border border-slate-700 bg-[#0F1E36] p-6 shadow-2xl">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/80 pb-4">
-          <div>
-            <div className="font-mono-tabular text-xs font-bold text-orange-400">
-              RAPOR KPI SISWA · {cfg.title.toUpperCase()}
+          <div className="flex items-center gap-3.5">
+            <img
+              src="/assets/aistudio/logo_kecil__stm_kapal_baru_0c25b1d6.png"
+              alt="Logo SMK Tanjung Priok 1"
+              referrerPolicy="no-referrer"
+              className="h-12 w-12 shrink-0 object-contain"
+            />
+            <div>
+              <div className="font-mono-tabular text-xs font-bold text-orange-400">
+                RAPOR KPI SISWA · SMK TANJUNG PRIOK 1 · {cfg.title.toUpperCase()}
+              </div>
+              <h2 className="font-display text-3xl font-extrabold text-white">
+                {stats.packagesDelivered >= stats.targetPackages
+                  ? 'SHIFT SELESAI LEBIH AWAL!'
+                  : 'WAKTU SHIFT BERAKHIR'}
+              </h2>
             </div>
-            <h2 className="font-display text-3xl font-extrabold text-white">
-              {stats.packagesDelivered >= stats.targetPackages
-                ? 'SHIFT SELESAI LEBIH AWAL!'
-                : 'WAKTU SHIFT BERAKHIR'}
-            </h2>
           </div>
 
           <div className={`flex items-center gap-2 rounded-lg border px-3.5 py-2 ${gradeColor}`}>

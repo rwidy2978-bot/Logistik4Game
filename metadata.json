@@ -1,6 +1,6 @@
 {
   "name": "Warehouse Grand Prix: Order Fulfillment Rush",
-  "description": "Game edukasi 2D interaktif Manajemen Logistik SMK: simulasi Order Picking, Packing & Handling Label, hingga Dispatch di gudang U-Shape.",
+  "description": "Game edukasi 2D interaktif Teknik Logistik SMK Tanjung Priok 1 : simulasi Order Picking, Packing & Handling Label, hingga Dispatch di gudang U-Shape.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

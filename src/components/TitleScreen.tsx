@@ -9,6 +9,8 @@ interface TitleScreenProps {
   onStartGame: () => void;
   muted: boolean;
   onToggleMute: () => void;
+  tutorialEnabled: boolean;
+  onToggleTutorial: () => void;
 }
 
 export const TitleScreen: React.FC<TitleScreenProps> = ({
@@ -17,6 +19,8 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
   onStartGame,
   muted,
   onToggleMute,
+  tutorialEnabled,
+  onToggleTutorial,
 }) => {
   const [showGuide, setShowGuide] = useState(false);
 
@@ -25,9 +29,15 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
       {/* Top utility row */}
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4">
         <div className="flex items-center gap-3 text-xs font-medium text-slate-300">
-          <span className="font-mono-tabular text-orange-400">SMK MANAJEMEN LOGISTIK</span>
-          <span aria-hidden="true" className="text-slate-600">·</span>
-          <span>Simulasi Order Fulfillment 2D</span>
+          <img
+            src="/assets/aistudio/logo_kecil__stm_kapal_baru_0c25b1d6.png"
+            alt="Logo SMK Tanjung Priok 1"
+            referrerPolicy="no-referrer"
+            className="h-7 w-7 shrink-0 object-contain"
+          />
+          <span className="font-mono-tabular text-orange-400">TEKNIK LOGISTIK · SMK TANJUNG PRIOK 1</span>
+          <span aria-hidden="true" className="hidden sm:inline text-slate-600">·</span>
+          <span className="hidden sm:inline">Simulasi Order Fulfillment 2D</span>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
@@ -65,22 +75,15 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
       <div className="mx-auto my-auto w-full max-w-5xl py-4">
         {/* Custom Inline SVG Title Lockup */}
         <div className="mb-6 flex flex-col items-start gap-2">
-          <div className="flex items-center gap-3.5">
-            <svg
-              width="48"
-              height="48"
-              viewBox="0 0 48 48"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden="true"
-              className="shrink-0"
-            >
-              <rect x="2" y="2" width="44" height="44" rx="10" fill="#0F1E36" stroke="#F97316" strokeWidth="2.5" />
-              <path d="M12 20L24 13L36 20V33L24 40L12 33V20Z" fill="#1E293B" stroke="#F8FAFC" strokeWidth="2" strokeLinejoin="round" />
-              <path d="M12 20L24 27L36 20" stroke="#F97316" strokeWidth="2" strokeLinejoin="round" />
-              <path d="M24 27V40" stroke="#F97316" strokeWidth="2" />
-              <path d="M18 16.5L30 23.5" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" />
-            </svg>
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-slate-700/90 bg-[#0F1E36] p-1.5 shadow-lg">
+              <img
+                src="/assets/aistudio/logo_kecil__stm_kapal_baru_0c25b1d6.png"
+                alt="Logo SMK Tanjung Priok 1"
+                referrerPolicy="no-referrer"
+                className="h-full w-full object-contain"
+              />
+            </div>
             <div>
               <h1 className="font-display text-4xl font-extrabold tracking-tight text-white sm:text-5xl text-balance leading-none">
                 WAREHOUSE GRAND PRIX
@@ -140,16 +143,37 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
           })}
         </div>
 
-        {/* Primary CTA */}
+        {/* Primary CTA & Tutorial Toggle */}
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-          <button
-            type="button"
-            onClick={onStartGame}
-            className="inline-flex items-center gap-2.5 rounded-xl bg-orange-500 px-7 py-3.5 text-base font-bold text-slate-950 shadow-lg shadow-orange-950/40 transition-transform hover:bg-orange-400 active:scale-[0.98] whitespace-nowrap shrink-0 cursor-pointer"
-          >
-            <Play className="h-5 w-5 fill-slate-950" />
-            <span>Mulai Shift Sekarang</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={onStartGame}
+              className="inline-flex items-center gap-2.5 rounded-xl bg-orange-500 px-7 py-3.5 text-base font-bold text-slate-950 shadow-lg shadow-orange-950/40 transition-transform hover:bg-orange-400 active:scale-[0.98] whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Play className="h-5 w-5 fill-slate-950" />
+              <span>Mulai Shift Sekarang</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleTutorial}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                tutorialEnabled
+                  ? 'border-amber-400/70 bg-amber-950/35 text-amber-200'
+                  : 'border-slate-700 bg-slate-900/80 text-slate-400 hover:border-slate-500 hover:text-slate-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-3 w-3 rounded-sm border ${
+                  tutorialEnabled
+                    ? 'border-amber-400 bg-amber-400'
+                    : 'border-slate-500 bg-transparent'
+                }`}
+              />
+              <span>Tutorial Interaktif: {tutorialEnabled ? 'Aktif' : 'Nonaktif'}</span>
+            </button>
+          </div>
 
           <p className="text-xs text-slate-400 font-mono-tabular">
             WASD / Panah Bergerak · Spasi Ambil / Proses · Esc Jeda

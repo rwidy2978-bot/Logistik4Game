@@ -149,6 +149,14 @@ export interface ShiftStats {
   lessons: string[];
 }
 
+export type TutorialStep =
+  | 'OFF'
+  | 'PICKING'
+  | 'GO_PACKING'
+  | 'DO_PACKING'
+  | 'DISPATCH'
+  | 'COMPLETED';
+
 export interface HudSnapshot {
   score: number;
   timeRemaining: number;
@@ -159,4 +167,5 @@ export interface HudSnapshot {
   activeOrders: Order[];
   nearbyPrompt: string | null;
   statusBanner: { text: string; tone: 'info' | 'success' | 'warning' | 'error' } | null;
+  tutorialStep: TutorialStep;
 }

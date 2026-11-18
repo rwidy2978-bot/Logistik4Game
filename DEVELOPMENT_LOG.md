@@ -40,3 +40,18 @@
 - [x] Gerakan forklift dinamis: belok mulus di tikungan, modulasi kecepatan tikungan, *K3 Blue Safety Spotlight*, muatan palet di garpu, dan roda industri.
 - [x] Efek suara klakson peringatan acak (3 variasi klakson Web Audio API + cooldown acak) saat mendekati area kerja pemain, dilengkapi gelombang akustik visual (`TIN! K3`).
 - [x] Sinkronisasi penuh ke `public/warehouse-grand-prix.html`.
+
+---
+
+## Fase 4: Tutorial Interaktif Langkah-demi-Langkah
+- [x] `src/components/TutorialOverlay.tsx` — Kartu panduan overlay non-blocking di pojok kiri atas (4 langkah: Mengambil Barang -> Menuju Meja Packing -> Packing & Handling Label -> Dispatch di Loading Dock) + tombol `Lewati`.
+- [x] Garis panduan & beacon target animasi pada Canvas 2D menuju rak/meja/dock tujuan selama tutorial berlangsung, disertai jeda timer shift selama panduan.
+- [x] Toggle `Tutorial Interaktif: Aktif / Nonaktif` di `TitleScreen` serta petunjuk Langkah 3/4 di dalam `PackingModal`.
+- [x] Sinkronisasi penuh ke `public/warehouse-grand-prix.html`.
+
+---
+
+## Fase 5: Penambahan Logo Resmi SMK Tanjung Priok 1
+- [x] Pemasangan logo `/assets/aistudio/logo_kecil__stm_kapal_baru_0c25b1d6.png` pada Title Screen, Top HUD Bar, Rapor KPI Siswa, dan favicon `index.html`.
+- [x] Penyesuaian identitas program keahlian `Teknik Logistik · SMK Tanjung Priok 1`.
+- [x] Penyematan data URI base64 logo ke dalam `public/warehouse-grand-prix.html` agar 100% portabel sebagai satu file HTML di Netlify.

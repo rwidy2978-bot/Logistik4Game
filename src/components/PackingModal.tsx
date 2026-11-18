@@ -5,6 +5,7 @@ import { CheckSquare, Square, AlertCircle, PackageCheck } from 'lucide-react';
 
 interface PackingModalProps {
   order: Order;
+  tutorialActive?: boolean;
   onWrongLabel: (chosen: HandlingLabel, expected: HandlingLabel) => void;
   onConfirmPack: (orderId: string) => void;
   onCancel: () => void;
@@ -40,6 +41,7 @@ const LabelIcon: React.FC<{ type: HandlingLabel }> = ({ type }) => {
 
 export const PackingModal: React.FC<PackingModalProps> = ({
   order,
+  tutorialActive = false,
   onWrongLabel,
   onConfirmPack,
   onCancel,
@@ -103,6 +105,16 @@ export const PackingModal: React.FC<PackingModalProps> = ({
             Tunda (Esc)
           </button>
         </div>
+
+        {tutorialActive && (
+          <div className="mt-3 rounded-lg border border-amber-400/70 bg-amber-950/35 px-3 py-2 text-xs text-amber-100">
+            <strong className="font-mono-tabular text-amber-300">
+              Langkah 3/4 (Packing &amp; Handling Label):
+            </strong>{' '}
+            Periksa jenis barang di bawah, pilih <strong>1 Handling Label</strong> yang sesuai,
+            centang <strong>Packing List &amp; AWB</strong>, lalu klik <strong>Segel Paket</strong>.
+          </div>
+        )}
 
         {/* Cargo summary */}
         <div className="mt-3.5 rounded-lg border border-slate-700/80 bg-slate-900/70 p-3">
